@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block head %}
+<link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
+  />
+{% endblock %}
+{% block main %}
+<div class="container my-5">
+    <header class="jumbotron my-1">
+        <h1 class="display-4">The current user needs to be logged in to write.</h1>
+        <p class="lead">
+            A tag has many to many relationship in a board table.
+        </p>  
+    </header>
+    <div class="text-center text-danger">{{ err_msg }}</div>
+    <div class="row">
+        <div class="col-12">
+            <div class="form-group">
+            <label for="title">제목</label>
+            <input type="text" class="form-control" id="title" value="{{ board.title }}" readonly />
+            <label for="contents">내용</label>
+            <textarea class="form-control" readonly>{{ board.contents }}</textarea>
+            <label for="tags">태그</label>
+            <span id="tags" class="form-control">
+                {{ board.tags.all|join:", " }}
+            </span>
+            <div class="my-4">
+            {% if request.user in article.like_users.all %}
+            <a href="{% url 'board_like' board.id %}">
+                <i class="fas fa-heart fa-lg animated hinge delay-1s" style="color: red;"></i>
+            </a>
+            {% else %}
+            <a href="{% url 'board_like' board.id %}">
+                <i class="far fa-heart fa-lg animated infinite bounce delay-1s" style="color: gray;"></i>
+            </a>
+            {% endif %}
+            <p class="mt-1">{{ board.like_count }}명이 좋아합니다.</p>
+            </div>
+
+            {% if board.photo %}
+            <label for="title">사진</label><br>
+            <img src="{{ board.photo.url }}" style="max-width:40%;"/>
+            {% endif %}
+            </div>
+            <button class="btn btn-primary" onclick="location.href='/board/list/'">돌아가기</button>
+            <button class="btn btn-primary ml-3" onclick="location.href='{% url 'board_update' board.id %}'">수정하기</button>
+            <button class="btn btn-primary ml-3" onclick="location.href='{% url 'board_delete' board.id %}'">삭제하기</button>
+            
+        </div>
+    </div>
+
+    <!-- 댓글 목록 -->
+    
+    <div class="row mx-2">
+        <div class="col-lg-10 comment-bg">
+            <div class="page-header my-2">
+                <h2>Comments</h2>
+            </div>
+            <div class="comments-list">
+            {% for comment in comments %}
+                <div class="media">
+                    <div class="media-body">
+                        <h4 class="media-heading user_name">
+                        {{ comment.user }}
+                        </h4>
+                        {{ comment.content }}
+                        <hr>
+                    </div>
+                    <button class="btn btn-secondary btn-sm ml-3" onclick="location.href='{% url 'comment_delete' comment.id %}'">삭제하기</button>
+                </div>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 댓글 등록하기 -->
+    <div class="row mx-2">
+        {% if cmt_errors %}
+        <ul>
+            {% for error in cmt_errors %}
+            <li><div class="alert alert-primary">{{ error }}</div></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        <h3>댓글 쓰기</h3>
+        <form method="post" action="{% url 'comment_write' %}" enctype="multipart/form-data" class="col-lg-12 mx-auto">
+        {% csrf_token %}
+            <input type="hidden" name="post_id" value="{{ board.id }}">
+            <div class="form-group row">
+                <textarea class="form-control" name="content" rows="7"></textarea>
+            </div>
+        <div class="form-group row float-right">
+            <button type="submit" class="btn btn-primary">저장하기</button>
+        </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

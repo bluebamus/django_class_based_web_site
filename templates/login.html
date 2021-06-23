@@ -1,0 +1,63 @@
+{% extends "base.html" %} 
+{% load static %} 
+{% block main %}
+<div id="login">
+    <div class="container my-3">
+        <header class="jumbotron my-1">
+            <h1 class="display-4">Login using new user table</h1>
+            <p class="lead">
+                It doesn't use django's user model.
+                Use the created new table by user.            
+            </p>  
+        </header>
+        <div class="text-center text-danger">{{ error }}</div>
+        <div class="text-center text-danger">
+        {% if messages %}
+            {% for message in messages %}
+                {{ message.tags }}
+                {{ message.message }}
+            {% endfor %}
+        {% endif %}
+        </div>
+        <br />
+        <h3 class="text-center text-danger">Login</h3>
+        <br />
+        <hr />
+        <div class="col-md-6 mx-auto">
+            <form method="POST" action="{% url 'login' %}">
+                {% csrf_token %} {% for field in form %}
+                <div class="form-group">
+                <label for="{{ field.id_for_label }}" class="text-danger"
+                    >{{ field.label }}</label
+                ><br />
+                <input
+                    type="{{ field.field.widget.input_type }}"
+                    class="form-control"
+                    id="{{ field.id_for_label }}"
+                    placeholder="{{ field.label }}"
+                    name="{{ field.name }}"
+                    class="form-control"
+                />
+                </div>
+                {% if field.errors %}
+                <span class="form-group" style="color: red">{{ field.errors }}</span>
+                {% endif %} {% endfor %}
+                <div class="form-group">
+                <button type="submit" class="form-control btn btn-danger">
+                    Submit
+                </button>
+                </div>
+            </form>
+            <div class="form-group">
+                <button
+                type="button"
+                class="mt-1 form-control btn btn-danger"
+                onclick="{% url 'register' %}"
+                >
+                Register
+                </button>
+            </div>
+        </div>
+  </div>
+</div>
+{% endblock %}

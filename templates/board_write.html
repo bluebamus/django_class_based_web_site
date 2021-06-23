@@ -1,0 +1,34 @@
+{% extends "base.html" %} 
+{% block main %}
+<div class="container my-5">
+    <header class="jumbotron my-1">
+        <h1 class="display-4">The current user needs to be logged in to write.</h1>
+        <p class="lead">
+            A tag has many to many relationship in a board table.
+        </p>  
+    </header>
+    <div class="row">
+    <div class="col-12">
+        <form method="POST" action="{% url 'board_write' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="form-group">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {% ifequal field.name 'contents' %}
+            <textarea class="form-control h-25" rows="10" name="{{ field.name }}" placeholder="{{ field.label }}"></textarea>                      
+            {% else %}            
+            <input type="{{ field.field.widget.input_type }}" class="form-control" id="{{ field.id_for_label }}"
+            placeholder="{{ field.label }}" name="{{ field.name }}" />
+            {% endifequal %}
+        </div>
+        {% if field.errors %}
+        <span style="color: red">{{ field.errors }}</span>
+        {% endif %}
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">글쓰기</button>
+        <button type="button" class="btn btn-primary" onclick="location.href='/board/list/'">돌아가기</button>
+        </form>
+    </div>
+    </div>
+</div>
+{% endblock %}

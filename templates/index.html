@@ -1,0 +1,68 @@
+{% extends "base.html" %} 
+{% load static %}
+{% block main %} 
+<!-- Header-->
+<header class="bg-primary py-5 mb-5">
+<div class="container h-50">
+    <div class="row h-50 align-items-center">
+        <div class="col-lg-12">
+        <h1 class="display-5 text-white mt-2 mb-2">
+            Django function based web site
+        </h1>
+        <p class="lead mb-5 text-white-50">
+            This site made to understand how to use django funtional programing.
+            If you have any better idea to share with django beginner, join our github group.
+        </p>
+        <a class="btn btn-success btn-lg" href="#!">Join the github group</a>
+        </div>
+    </div>
+</div>
+</header>
+<!-- Page Content-->
+<div class="container">
+    <!-- Jumbotron Header-->
+    <header class="jumbotron my-4">
+
+    {% if username %}
+    <h1 class="display-4">Hello {{ username }}</h1>
+    {% else %}
+    <h1 class="display-4">Hello anonymous</h1>
+    {% endif %}
+    <p class="lead">
+        User can write note after login.        
+    </p>    
+    </header>
+    <!-- Page Features-->
+    <div class="row text-center">
+        {% for board in boards %}
+        <div class="col-lg-4 col-md-6 mb-4">            
+            <div class="card h-100">
+                {% if board.photo_thumbnail %}       
+                <img
+                    class="card-img-top"                
+                    src="{{ board.photo_thumbnail.url }}"
+                    alt="{{ board.title }}"
+                />
+                {% else %}
+                <img
+                    class="card-img-top"                
+                    src="{{ board.photo.url }}" 
+                    alt="{{ board.title}} "
+                />
+                {% endif %}
+                <div class="card-body">
+                    <h5 class="card-title">{{ board.title|truncatechars:20 }}</h5>
+                    <p class="card-text">
+                    {{ board.contents|truncatechars:20 }}
+                    </p>
+                </div>
+                <div class="card-footer">
+                    <p >{{ board.like_count }}명이 좋아합니다.</p>
+                    <a class="btn btn-primary" href="/board/detail/{{ board.id }}/">Detail More!</a>
+                </div>
+            </div>            
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
