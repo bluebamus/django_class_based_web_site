@@ -18,13 +18,14 @@
                 {{ message.message }}
             {% endfor %}
         {% endif %}
+        {{ error }}
         </div>
         <br />
         <h3 class="text-center text-danger">Login</h3>
         <br />
         <hr />
         <div class="col-md-6 mx-auto">
-            <form method="POST" action="{% url 'login' %}">
+            <form method="POST" action="{% url 'user:login' %}">
                 {% csrf_token %} {% for field in form %}
                 <div class="form-group">
                 <label for="{{ field.id_for_label }}" class="text-danger"
@@ -40,6 +41,9 @@
                 />
                 </div>
                 {% if field.errors %}
+                <span style="color: red">{{ field.errors }}</span>
+                {% endif %}
+                {% if field.errors %}
                 <span class="form-group" style="color: red">{{ field.errors }}</span>
                 {% endif %} {% endfor %}
                 <div class="form-group">
@@ -52,7 +56,7 @@
                 <button
                 type="button"
                 class="mt-1 form-control btn btn-danger"
-                onclick="{% url 'register' %}"
+                onclick="{% url 'user:register' %}"
                 >
                 Register
                 </button>
