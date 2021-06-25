@@ -4,6 +4,7 @@ from imagekit.models import ImageSpecField  # 썸네일 함수
 from imagekit.processors import ResizeToFill  # 사이즈조절
 from uuid import uuid4
 from django.utils import timezone
+from django.urls import reverse
 from helpers.models import BaseModel
 from user.models import Usert
 
@@ -69,8 +70,20 @@ class Board(models.Model):
     #         os.remove(os.path.join(settings.MEDIA_ROOT, self.upload_files.path))
     #     super(Notice, self).delete(*args, **kargs)
 
+    def get_absolute_url(self):
+        return reverse("board:board_detail", kwargs={"pk": self.pk})
+        # reverse 사용 방법 예시
+        # return reverse('board:board_detail', args=[self.pk])
+        # return reverse('board:board_detail')
+        # return reverse('board:board_detail', args=[self.pk])
+        # return reverse('board:board_detail', kwargs={'pk':self.pk})
+
     def __str__(self):
-        return self.title
+        return "%s - %s - %s" % (
+            self.id,
+            self.title,
+            self.writer,
+        )
 
     class Meta:
         db_table = "board"
@@ -84,6 +97,7 @@ class Comment(BaseModel):
     content = models.TextField()
     parent_comment = models.ForeignKey("self", on_delete=models.CASCADE, null=True)
     # 대댓글 기능은 fbv에서는 구현안함, cvb project에서 구현
+
     def __str__(self):
         return "%s - %s - %s" % (
             self.id,

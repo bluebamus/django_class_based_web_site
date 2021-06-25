@@ -3,6 +3,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.http import Http404
+from django.views.generic import ListView, DetailView
 from user.models import Usert
 from tag.models import Tag
 from .models import Board, Comment
@@ -10,6 +11,27 @@ from .forms import BoardForm, BoardUpdateForm
 from user.decorators import *
 
 # Create your views here.
+
+
+class BoardDetailView(DetailView):
+    template_name = "board_detail.html"
+    # queryset = Board.objects.all() # model의 선언 동작과 동일함
+    # model = Board
+    context_object_name = "board"
+
+    # get_object와 model 선언시 동작에 대한 성능은 차후 평가가 필요하다
+    # def get_object(self, queryset=None):
+    #     return Board.objects.get(pk=self.kwargs.get("pk"))
+
+    def get_object(self):
+        id_ = self.kwargs.get("pk")
+        return get_object_or_404(Board, id=id_)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        args = {"board": self.kwargs.get("pk"), "is_deleted": False}
+        context["comments"] = Comment.objects.filter(**args)
+        return context
 
 
 def board_detail(request, pk):
@@ -181,7 +203,7 @@ def likes(request, pk):
         like_blog.like_count += 1
         like_blog.save()
 
-    return redirect("board_detail", pk=pk)
+    return redirect("board:board_detail", pk=pk)
 
 
 @login_required
@@ -202,7 +224,7 @@ def comment_write(request):
                 parent_comment=None,
             )
 
-            return redirect(reverse("board_detail", kwargs={"pk": post_id}))
+            return redirect(reverse("board:board_detail", kwargs={"pk": post_id}))
 
     return render(request, "blogs/post_detail.html", {"user": request.user, "cmt_errors": errors})
     # return render(request, "board_detail.html", {"board": board, "err_msg": err_msg})

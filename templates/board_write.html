@@ -9,7 +9,7 @@
     </header>
     <div class="row">
     <div class="col-12">
-        <form method="POST" action="{% url 'board_write' %}" enctype="multipart/form-data">
+        <form method="POST" action="{% url 'board:board_write' %}" enctype="multipart/form-data">
         {% csrf_token %}
         {% for field in form %}
         <div class="form-group">

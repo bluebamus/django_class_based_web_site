@@ -10,7 +10,7 @@
     <div class="text-center text-danger">{{ err_msg }}</div>
     <div class="row">
     <div class="col-12">
-        <form method="POST" action="{% url 'board_update' board.id %}" enctype="multipart/form-data">
+        <form method="POST" action="{% url 'board:board_update' board.id %}" enctype="multipart/form-data">
         {% csrf_token %}                
             <div class="form-group">                
                 <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
