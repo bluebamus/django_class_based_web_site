@@ -1,9 +1,13 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
-from django.http import Http404
+from django.http import Http404, HttpResponse, HttpResponseRedirect
+from django.views import View
 from django.views.generic import ListView, DetailView
+from django.views.generic.edit import CreateView, UpdateView, DeleteView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.utils.decorators import method_decorator
 from user.models import Usert
 from tag.models import Tag
 from .models import Board, Comment
@@ -34,182 +38,142 @@ class BoardDetailView(DetailView):
         return context
 
 
-def board_detail(request, pk):
-    try:
-        board = Board.objects.get(pk=pk)
-        comments = Comment.objects.filter(board=pk, is_deleted=False)
-    except (Board.DoesNotExist, Comment.DoesNotExist):
-        raise Http404("게시글을 찾을 수 없습니다")
-
-    return render(request, "board_detail.html", {"board": board, "comments": comments})
-
-
-@login_required
-def board_update(request, pk):
-    try:
-        # board = Board.objects.get(pk=pk)
-        board = get_object_or_404(Board, pk=pk)
-    except Board.DoesNotExist:
-        raise Http404("게시글을 찾을 수 없습니다")
-
-    user_id = request.session.get("user")
-    usert = Usert.objects.get(pk=user_id)
-
-    if usert != board.writer:
-        err_msg = "글을 작성한 본인만 수정할 수 있습니다."
-        return render(request, "board_detail.html", {"board": board, "err_msg": err_msg})
-
-    if request.method == "POST":
-        form = BoardUpdateForm(request.POST or None, request.FILES or None, instance=board)
-        if form.is_valid():
-            user_id = request.session.get("user")
-            usert = Usert.objects.get(pk=user_id)
-            tags = form.cleaned_data["tags"].split(",")
-
-            board.title = form.cleaned_data["title"]
-            board.contents = form.cleaned_data["contents"]
-            board.writer = usert
-            if form.cleaned_data["photo"] == None:
-                board.photo = "default/no_img_lg.png"
-            elif form.cleaned_data["photo"] != board.photo:
-                board.photo = form.cleaned_data["photo"]
-            else:
-                pass
-            board.save()
-            # 보드 생성 이후 pk가 만들어지고 나서 만들어야 에러 발생이 안됨
-            for tag in tags:
-                if not tag:
-                    continue
-
-                # _tag, created = Tag.objects.get_or_create(name=tag)
-                _tag, _data = Tag.objects.get_or_create(name=tag.strip())
-                #  '_XXXX'는 protected를 의미함
-                #  '_'는 사용하지 않는 변수를 의미함
-                # Tag.objects.get_or_create(name=tag)는 가지고 있으면 가져오고 없으면 생성함
-                # 이름과 작성자가 모두 똑같은 사람이 하고 싶다면 Tag.objects.get_or_create(name=tag, writer=writer)
-                # 이름과 작성자가 다르면 새로 만듬
-                # 이름만 확인하고 작성자가 없으면 기본값으로 생성
-                # Tag.objects.get_or_create(name=tag, defaults={'wr'})
-                board.tags.add(_tag)
-            return redirect("board_detail", pk=pk)
-        else:
-            print(form.errors)
-    form = BoardUpdateForm(instance=board)
-    # ModelForm에서는 initial이 아닌 instance로 객체를 전달해야한다.
-    """form = BoardUpdateForm(
-        initial={
-            "title": board.title,
-            "contents": board.contents,
-            "tags": [tag.name for tag in board.tags.all()],
-            "photo": board.photo,
-        }
-    )"""
-    return render(request, "board_update.html", {"form": form, "board": board})
+class BoardListView(ListView):
+    model = Board
+    paginate_by = 3
+    paginate_orphans = 1
+    ordering = "-id"
+    template_name = "board_list.html"
+    context_object_name = "boards"
 
 
-@login_required
-def board_delete(request, pk):
-    try:
-        board = Board.objects.get(pk=pk)
-    except Board.DoesNotExist:
-        raise Http404("게시글을 찾을 수 없습니다")
+@method_decorator(login_required, name="dispatch")
+class BoardUpdateView(UpdateView):
+    model = Board
+    form_class = BoardUpdateForm
+    template_name = "board_update.html"
 
-    if not request.session.get("user"):
+    def form_valid(self, form):
+        user_id = self.request.session.get("user")
 
-        err_msg = "로그인을 한 사용자만 글을 삭제할 수 있습니다."
-        return render(request, "board_detail.html", {"board": board, "err_msg": err_msg})
+        # 작성자 확인 custom user table을 사용했기에 별도 검사가 필요함
+        if user_id != int(self.object.writer_id):
+            err_msg = "글을 작성한 본인만 수정할 수 있습니다."
+            return render(
+                self.request, "board_detail.html", {"board": self.object, "err_msg": err_msg}
+            )
 
-    user_id = request.session.get("user")
-    usert = Usert.objects.get(pk=user_id)
+        # photo 데이터를 삭제하는 경우
+        self.object = form.save(commit=False)
+        if form.cleaned_data["photo"] == None:
+            self.object.photo = "default/no_img_lg.png"
 
-    if usert == board.writer:
-        Board.objects.get(pk=pk).delete()
-    else:
-        err_msg = "글을 작성한 본인만 삭제할 수 있습니다."
-        return render(request, "board_detail.html", {"board": board, "err_msg": err_msg})
-    return redirect("/board/list/")
+        # DB에 실재로 저장함
+        self.object.save()
 
+        # tag 작업
+        tags = form.cleaned_data["tags"].split(",")
 
-@login_required
-def board_write(request):
-    if not request.session.get("user"):
-        return redirect("/login/")
+        # for tag in tags:
+        #     if not tag:
+        #         continue
 
-    if request.method == "POST":
-        form = BoardForm(request.POST, request.FILES or None)
-        if form.is_valid():
-            user_id = request.session.get("user")
-            usert = Usert.objects.get(pk=user_id)
-            tags = form.cleaned_data["tags"].split(",")
+        #     # _tag, created = Tag.objects.get_or_create(name=tag)
+        #     _tag, _data = Tag.objects.get_or_create(name=tag.strip())
+        #     #  '_XXXX'는 protected를 의미함
+        #     #  '_'는 사용하지 않는 변수를 의미함
+        #     # Tag.objects.get_or_create(name=tag)는 가지고 있으면 가져오고 없으면 생성함
+        #     # 이름과 작성자가 모두 똑같은 사람이 하고 싶다면 Tag.objects.get_or_create(name=tag, writer=writer)
+        #     # 이름과 작성자가 다르면 새로 만듬
+        #     # 이름만 확인하고 작성자가 없으면 기본값으로 생성
+        #     # Tag.objects.get_or_create(name=tag, defaults={'wr'})
+        #     self.object.tags.add(_tag)
 
-            board = Board()
-            board.title = form.cleaned_data["title"]
-            board.contents = form.cleaned_data["contents"]
-            board.writer = usert
-            board.photo = form.cleaned_data["photo"]
-            if board.photo == None:
-                board.photo = "default/no_img_lg.png"
-            board.save()
+        # stackoverflow의 code 참조
 
-            # 보드 생성 이후 pk가 만들어지고 나서 만들어야 에러 발생이 안됨
-            for tag in tags:
-                if not tag:
-                    continue
+        for new_tag in tags:
+            if not new_tag:
+                continue
 
-                # _tag, created = Tag.objects.get_or_create(name=tag)
-                _tag, _ = Tag.objects.get_or_create(name=tag.strip())
-                #  '_XXXX'는 protected를 의미함
-                #  '_'는 사용하지 않는 변수를 의미함
-                # Tag.objects.get_or_create(name=tag)는 가지고 있으면 가져오고 없으면 생성함
-                # 이름과 작성자가 모두 똑같은 사람이 하고 싶다면 Tag.objects.get_or_create(name=tag, writer=writer)
-                # 이름과 작성자가 다르면 새로 만듬
-                # 이름만 확인하고 작성자가 없으면 기본값으로 생성
-                # Tag.objects.get_or_create(name=tag, defaults={'wr'})
-                board.tags.add(_tag)
+            _tag, _data = Tag.objects.get_or_create(name=new_tag.strip())
+            self.object.tags.add(_tag)
 
-            return redirect("/board/list/")
-    else:
-        form = BoardForm()
+        return HttpResponseRedirect(self.get_success_url())
 
-    return render(request, "board_write.html", {"form": form})
+    # def get_success_url(self, *args, **kwargs):
+    #     print("self : ", dir(self))
+    #     return self.instance.get_absolute_url()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["board_key"] = self.kwargs.get("pk")
+        return context
 
 
-def board_list(request):
-    all_boards = Board.objects.all().order_by("-id")
-    # -id 역순, 최신순으로 가져오겠다는 옵션
-    page = int(request.GET.get("p", 1))
-    paginator = Paginator(all_boards, 3)
-
-    boards = paginator.get_page(page)
-    return render(request, "board_list.html", {"boards": boards})
+@method_decorator(login_required, name="dispatch")
+class BoardDeleteView(DeleteView):
+    model = Board
+    success_url = reverse_lazy("board:board_list")
 
 
-@login_required
-def likes(request, pk):
-    try:
-        like_blog = get_object_or_404(Board, pk=pk)
-    except Board.DoesNotExist:
-        raise Http404("게시글을 찾을 수 없습니다")
+class BoardWriteView(LoginRequiredMixin, CreateView):
+    model = Board
+    form_class = BoardUpdateForm  # createview should only use modelform class.
+    template_name = "board_write.html"
+    # context_object_name = 'form' # need get_object
 
-    user_id = request.session.get("user")
-    # item = like_blog.like.values_list("id")
+    # def get_object(self):
+    #     id_ = self.kwargs.get("pk")
+    #     return get_object_or_404(Board, id=id_)
 
-    if like_blog.like.filter(id=user_id):
-        like_blog.like.remove(user_id)
-        like_blog.like_count -= 1
-        like_blog.save()
-    else:
-        like_blog.like.add(user_id)
-        like_blog.like_count += 1
-        like_blog.save()
+    def form_valid(self, form):
 
-    return redirect("board:board_detail", pk=pk)
+        # photo 데이터를 삭제하는 경우
+        self.object = form.save(commit=False)
+        if form.cleaned_data["photo"] == None:
+            self.object.photo = "default/no_img_lg.png"
+
+        self.object.writer = Usert.objects.get(pk=self.request.session.get("user"))
+
+        # DB에 실재로 저장함
+        self.object.save()
+
+        # tag 작업
+        tags = form.cleaned_data["tags"].split(",")
+
+        # for tag in tags:
+        #     if not tag:
+        #         continue
+
+        #     # _tag, created = Tag.objects.get_or_create(name=tag)
+        #     _tag, _data = Tag.objects.get_or_create(name=tag.strip())
+        #     #  '_XXXX'는 protected를 의미함
+        #     #  '_'는 사용하지 않는 변수를 의미함
+        #     # Tag.objects.get_or_create(name=tag)는 가지고 있으면 가져오고 없으면 생성함
+        #     # 이름과 작성자가 모두 똑같은 사람이 하고 싶다면 Tag.objects.get_or_create(name=tag, writer=writer)
+        #     # 이름과 작성자가 다르면 새로 만듬
+        #     # 이름만 확인하고 작성자가 없으면 기본값으로 생성
+        #     # Tag.objects.get_or_create(name=tag, defaults={'wr'})
+        #     self.object.tags.add(_tag)
+
+        # stackoverflow의 code 참조
+
+        for new_tag in tags:
+            if not new_tag:
+                continue
+
+            _tag, _data = Tag.objects.get_or_create(name=new_tag.strip())
+            self.object.tags.add(_tag)
+
+        return HttpResponseRedirect(self.get_success_url())
 
 
-@login_required
-def comment_write(request):
-    errors = []
-    if request.method == "POST":
+@method_decorator(login_required, name="dispatch")
+@method_decorator(require_POST, name="dispatch")
+class CommentWriteView(View):
+    def post(self, request, *args, **kwargs):
+        errors = []
+
         post_id = request.POST.get("post_id", "").strip()
         content = request.POST.get("content", "").strip()
 
@@ -226,30 +190,57 @@ def comment_write(request):
 
             return redirect(reverse("board:board_detail", kwargs={"pk": post_id}))
 
-    return render(request, "blogs/post_detail.html", {"user": request.user, "cmt_errors": errors})
-    # return render(request, "board_detail.html", {"board": board, "err_msg": err_msg})
+        return render(
+            request, "blogs/post_detail.html", {"user": request.user, "cmt_errors": errors}
+        )
 
 
-@login_required
-def comment_delete(request, pk):
-    errors = []
-    try:
-        comment = Comment.objects.get(pk=pk)
-    except Board.DoesNotExist:
-        raise Http404("게시 댓글을 찾을 수 없습니다")
+# bug : 다른 사용자 로그인시 로그인 창으로 이동됨.
+# 원래대로라면 내부 로직에서 글 작성자인지 여부를 검사하는 항목에서 걸러져야함
+# 원인으로 django user를 사용하지 않고 custom user table을 사용했기 때문임 : 따로 구현하는 것이 맞음
+class CommentDeleteView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        errors = []
 
-    user_id = request.session.get("user")
-    user = Usert.objects.get(pk=user_id)
+        try:
+            comment = Comment.objects.get(pk=self.kwargs.get("pk"))
+        except Board.DoesNotExist:
+            raise Http404("게시 댓글을 찾을 수 없습니다")
 
-    if user == comment.user:
-        # Comment.objects.get(pk=pk).delete()
-        comment.delete()
-    else:
-        errors.append("글을 작성한 본인만 삭제할 수 있습니다.")
+        user_id = request.session.get("user")
+        user = Usert.objects.get(pk=user_id)
 
-    comments = Comment.objects.filter(board=comment.board.id, is_deleted=False)
-    return render(
-        request,
-        "board_detail.html",
-        {"board": comment.board, "comments": comments, "err_msg": errors},
-    )
+        if user == comment.user:
+            comment.delete()
+        else:
+            errors.append("글을 작성한 본인만 삭제할 수 있습니다.")
+
+        comments = Comment.objects.filter(board=comment.board.id, is_deleted=False)
+        return render(
+            request,
+            "board_detail.html",
+            {"board": comment.board, "comments": comments, "err_msg": errors},
+        )
+
+
+@method_decorator(login_required, name="dispatch")
+class LikesView(View):
+    def get(self, request, *args, **kwargs):
+        try:
+            like_blog = get_object_or_404(Board, pk=self.kwargs.get("pk"))
+        except Board.DoesNotExist:
+            raise Http404("게시글을 찾을 수 없습니다")
+
+        user_id = request.session.get("user")
+        # item = like_blog.like.values_list("id")
+
+        if like_blog.like.filter(id=user_id):
+            like_blog.like.remove(user_id)
+            like_blog.like_count -= 1
+            like_blog.save()
+        else:
+            like_blog.like.add(user_id)
+            like_blog.like_count += 1
+            like_blog.save()
+
+        return redirect("board:board_detail", pk=self.kwargs.get("pk"))

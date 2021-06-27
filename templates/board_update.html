@@ -10,7 +10,7 @@
     <div class="text-center text-danger">{{ err_msg }}</div>
     <div class="row">
     <div class="col-12">
-        <form method="POST" action="{% url 'board:board_update' board.id %}" enctype="multipart/form-data">
+        <form method="POST" action="{% url 'board:board_update' board_key %}" enctype="multipart/form-data">
         {% csrf_token %}                
             <div class="form-group">                
                 <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
@@ -34,7 +34,7 @@
             <span style="color: red">{{ form.title.errors }}{{ form.contents.errors }}</span>
             {% endif %}        
             <button type="submit" class="btn btn-primary">수정하기</button>
-            <button type="button" class="btn btn-primary" onclick="location.href='{% url 'board_detail' board.id %}'">돌아가기</button>
+            <button type="button" class="btn btn-primary" onclick="location.href='{% url 'board:board_detail' board_key %}'">돌아가기</button>
         </form>
     </div>
     </div>
